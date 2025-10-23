@@ -12,23 +12,47 @@ import random
 import re 
 from datetime import datetime, timedelta # Import for date handling
 
+import os
+
 # --- BASE CONSTANTS ---
-API_KEY = "AIzaSyBLKlvvfpGFt-7VE9KGEawvowVLg8lQ_oM".strip()
+API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
-USER_DATA_FILE = "user_data.json" 
+USER_DATA_FILE = "user_data.json"
 
 # --- EXTERNAL API KEYS AND URLs ---
-WEATHER_API_KEY = "a51eb3849c1ee6390888af3c304f602f".strip()
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "").strip()
 WEATHER_API_URL = "http://api.openweathermap.org/data/2.5/weather"
-NEWS_API_KEY = "217f554ac72748d9a52a35fee2d07856".strip()
-NEWS_API_URL = "https://newsapi.org/v2/top-headlines" 
-NASA_API_KEY = "G4woneZEsTf4qaAjmF4bIY6AALRwx7Vl42LNt7dC".strip()
-NASA_APOD_URL = "https://api.nasa.com/planetary/apod" # Placeholder
+
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "").strip()
+NEWS_API_URL = "https://newsapi.org/v2/top-headlines"
+
+NASA_API_KEY = os.getenv("NASA_API_KEY", "").strip()
+NASA_APOD_URL = "https://api.nasa.gov/planetary/apod"  # ✅ fixed to correct NASA domain
+
 TRIVIA_API_URL = "https://opentdb.com/api.php?amount=1"
 
 # --- IMAGE SEARCH CONSTANTS ---
-GOOGLE_API_KEY = "AIzaSyCoziUxrf0YSMpX1IDlltXziH8NKELmLkQ".strip() 
-GOOGLE_CUSTOM_SEARCH_CX = "1702b3481ec8b4dce".strip()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()
+GOOGLE_CUSTOM_SEARCH_CX = os.getenv("GOOGLE_CUSTOM_SEARCH_CX", "").strip()
+
+
+# # --- BASE CONSTANTS ---
+# API_KEY = "AIzaSyBLKlvvfpGFt-7VE9KGEawvowVLg8lQ_oM".strip()
+# GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+# USER_DATA_FILE = "user_data.json" 
+
+# # --- EXTERNAL API KEYS AND URLs ---
+# WEATHER_API_KEY = "a51eb3849c1ee6390888af3c304f602f".strip()
+# WEATHER_API_URL = "http://api.openweathermap.org/data/2.5/weather"
+# NEWS_API_KEY = "217f554ac72748d9a52a35fee2d07856".strip()
+# NEWS_API_URL = "https://newsapi.org/v2/top-headlines" 
+# NASA_API_KEY = "G4woneZEsTf4qaAjmF4bIY6AALRwx7Vl42LNt7dC".strip()
+# NASA_APOD_URL = "https://api.nasa.com/planetary/apod" # Placeholder
+# TRIVIA_API_URL = "https://opentdb.com/api.php?amount=1"
+
+# # --- IMAGE SEARCH CONSTANTS ---
+# GOOGLE_API_KEY = "AIzaSyCoziUxrf0YSMpX1IDlltXziH8NKELmLkQ".strip() 
+# GOOGLE_CUSTOM_SEARCH_CX = "1702b3481ec8b4dce".strip()
 # ===================================================
 
 class ActionHandler:
