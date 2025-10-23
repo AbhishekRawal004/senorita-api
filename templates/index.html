@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Senorita Assistant Web</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container"> <h1>Senorita Assistant</h1>
+        
+        <div id="video-player-container" style="display: none; padding-bottom: 15px;">
+            </div>
+        
+        <div class="chat-log" id="chat-log"> </div>
+        
+        <div class="input-area" id="input-controls">
+            <div id="input-area">
+                <input type="text" id="command-input" placeholder="Type your command here...">
+                <button id="send-button">Send</button>
+                <button id="voice-command-button">🎤 Voice</button>
+            </div>
+            <button id="stop-speaking-button" disabled>Stop Speaking</button>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
