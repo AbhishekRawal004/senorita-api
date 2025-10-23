@@ -6,7 +6,7 @@ import sys
 from gtts import gTTS
 from io import BytesIO
 import base64
-
+import os  # <-- needed for environment variables
 
 # --- Initialization ---
 app = Flask(__name__)
@@ -15,9 +15,6 @@ parser = CommandParser()
 actions = ActionHandler()
 
 # --- Utility Function ---
-# This wrapper is passed to ActionHandler.handle to handle the 'speak' side effect (TTS).
-# It simply logs the content to the server console for debugging, 
-# as the JavaScript client handles the actual TTS based on the returned JSON.
 def app_speak_wrapper(content):
     """Logs the response text and speech content to the server console."""
     if isinstance(content, dict):
@@ -25,22 +22,15 @@ def app_speak_wrapper(content):
     else:
         print(f"ASSISTANT SPEAKS (TEXT): {content}", file=sys.stderr)
 
-
 # --- Routes ---
-
 @app.route("/")
 def home():
     """Renders the main HTML template."""
-    # Assuming 'index.html' exists in the 'templates' folder
     return render_template("index.html")
 
 @app.route("/send_command", methods=["POST"])
-
 def send_command():
-    """
-    Receives text command from the client, processes it, and returns the structured response
-    including female TTS audio as base64.
-    """
+    """Receives text command from the client, processes it, and returns the structured response including female TTS audio as base64."""
     try:
         data = request.json
         user_text = data.get("text", "")
@@ -60,7 +50,7 @@ def send_command():
             response_text = str(response_text)
 
         # 3. Generate female TTS audio
-        tts = gTTS(text=response_text, lang="en", tld="com")  # tld="com" usually gives female voice
+        tts = gTTS(text=response_text, lang="en", tld="com")
         audio_fp = BytesIO()
         tts.write_to_fp(audio_fp)
         audio_fp.seek(0)
@@ -89,4 +79,5 @@ def send_command():
 
 # --- Run App ---
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Use Render's port or default to 5000
+    app.run(host="0.0.0.0", port=port, debug=True)
