@@ -1,10 +1,12 @@
 from flask import Flask, render_template, request, jsonify
 from command_parser import CommandParser
 from action_handler import ActionHandler
+from flask_cors import CORS
 import sys
 
 # --- Initialization ---
 app = Flask(__name__)
+CORS(app)  # <-- enables CORS for all routes and origins
 parser = CommandParser()
 actions = ActionHandler()
 
