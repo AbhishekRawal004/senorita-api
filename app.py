@@ -3,6 +3,10 @@ from command_parser import CommandParser
 from action_handler import ActionHandler
 from flask_cors import CORS
 import sys
+from gtts import gTTS
+from io import BytesIO
+import base64
+
 
 # --- Initialization ---
 app = Flask(__name__)
@@ -31,40 +35,57 @@ def home():
     return render_template("index.html")
 
 @app.route("/send_command", methods=["POST"])
+
 def send_command():
     """
-    Receives text command from the client, processes it, and returns the structured response.
+    Receives text command from the client, processes it, and returns the structured response
+    including female TTS audio as base64.
     """
     try:
         data = request.json
         user_text = data.get("text", "")
 
         if not user_text:
-            response_data = {"type": "text", "content": "Please provide a command."}
-            return jsonify({"response": response_data})
+            return jsonify({"response": {"type": "text", "content": "Please provide a command.", "audio": ""}})
 
         # 1. Parse Command
         t = user_text.lower().strip()
         intent, slots = parser.parse(t)
-        
-        # 2. Handle Action - The ActionHandler RETURNS the final structured dictionary.
-        # It passes the wrapper for the side effect (speech/console log).
-        response_data = actions.handle(intent, slots, app_speak_wrapper)
-        
-        # 3. Finalize Response
-        # Ensure the final response is the expected dictionary format.
-        if isinstance(response_data, str):
-             response_data = {"type": "text", "content": response_data}
-        
-        # 4. Return JSON to Client
-        return jsonify({"response": response_data})
-    
+
+        # 2. Handle Action
+        response_text = actions.handle(intent, slots, app_speak_wrapper)
+        if isinstance(response_text, dict):
+            response_text = response_text.get("content", str(response_text))
+        if not isinstance(response_text, str):
+            response_text = str(response_text)
+
+        # 3. Generate female TTS audio
+        tts = gTTS(text=response_text, lang="en", tld="com")  # tld="com" usually gives female voice
+        audio_fp = BytesIO()
+        tts.write_to_fp(audio_fp)
+        audio_fp.seek(0)
+        audio_base64 = base64.b64encode(audio_fp.read()).decode("utf-8")
+
+        # 4. Return JSON with text + audio
+        return jsonify({
+            "response": {
+                "type": "text",
+                "content": response_text,
+                "audio": audio_base64
+            }
+        })
+
     except Exception as e:
         error_message = f"Internal Server Error during command processing. Details: {e}"
         print(f"CRITICAL FLASK ERROR: {error_message}", file=sys.stderr)
-        
-        error_response = {"type": "text", "content": "Oops! I ran into an internal error while processing your request. Please try again."}
-        return jsonify({"response": error_response}), 500
+
+        return jsonify({
+            "response": {
+                "type": "text",
+                "content": "Oops! I ran into an internal error while processing your request. Please try again.",
+                "audio": ""
+            }
+        }), 500
 
 # --- Run App ---
 if __name__ == "__main__":
