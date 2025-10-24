@@ -3,9 +3,11 @@ from command_parser import CommandParser
 from action_handler import ActionHandler
 from flask_cors import CORS
 import sys
-import os
+import os 
+from dotenv import load_dotenv
 
 # --- Initialization ---
+load_dotenv()
 app = Flask(__name__)
 CORS(app)
 parser = CommandParser()
@@ -15,7 +17,6 @@ actions = ActionHandler()
 def app_speak_wrapper(content):
     """Logs the response text and speech content to the server console."""
     if isinstance(content, dict):
-        # Handle both old and new structured response formats
         text_content = content.get('text_response', content.get('content', str(content)))
         print(f"ASSISTANT SPEAKS (STRUCTURED): {text_content}", file=sys.stderr)
     else:
@@ -45,11 +46,9 @@ def send_command():
         response = actions.handle(intent, slots, app_speak_wrapper)
         
         # 3. Format Response
-        # List all structured command types that require mobile-side execution
         mobile_command_types = ["hardware_toggle", "open_mobile_app", "maps_search", "media_deep_link", "add_calendar_event"]
         
         if isinstance(response, dict) and response.get("type") in mobile_command_types:
-            # Structured command response
             response_text = response.get("text_response", response.get("content", "Command processed."))
             return jsonify({
                 "response": {
@@ -59,10 +58,8 @@ def send_command():
                 }
             })
         else:
-            # Text-only or image_list response
             response_text = response.get("content", str(response)) if isinstance(response, dict) else str(response)
             
-            # For image_list, send the list structure in the structured_data field too
             structured_data = response if isinstance(response, dict) and response.get("type") == "image_list" else None
 
             return jsonify({

@@ -11,26 +11,24 @@ from datetime import datetime, timedelta
 
 import os
 
-# --- BASE CONSTANTS (Security Fix: Removed hardcoded keys) ---
-API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+# --- BASE CONSTANTS (HARDCODED FOR LOCAL TESTING) ---
+# WARNING: DELETE THESE KEYS BEFORE DEPLOYMENT.
+API_KEY = "AIzaSyBLKlvvfpGFt-7VE9KGEawvowVLg8lQ_oM".strip() 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
 USER_DATA_FILE = "user_data.json"
 
-# --- EXTERNAL API KEYS AND URLs ---
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "").strip()
+# --- EXTERNAL API KEYS AND URLs (HARDCODED FOR LOCAL TESTING) ---
+WEATHER_API_KEY = "a51eb3849c1ee6390888af3c304f602f".strip()
 WEATHER_API_URL = "http://api.openweathermap.org/data/2.5/weather"
-
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "").strip()
-NEWS_API_URL = "https://newsapi.org/v2/top-headlines"
-
-NASA_API_KEY = os.getenv("NASA_API_KEY", "").strip()
+NEWS_API_KEY = "217f554ac72748d9a52a35fee2d07856".strip()
+NEWS_API_URL = "https://newsapi.org/v2/top-headlines" 
+NASA_API_KEY = "G4woneZEsTf4qaAjmF4bIY6AALRwx7Vl42LNt7dC".strip()
 NASA_APOD_URL = "https://api.nasa.gov/planetary/apod"
-
 TRIVIA_API_URL = "https://opentdb.com/api.php?amount=1"
 
-# --- IMAGE SEARCH CONSTANTS ---
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()
-GOOGLE_CUSTOM_SEARCH_CX = os.getenv("GOOGLE_CUSTOM_SEARCH_CX", "").strip()
+# --- IMAGE SEARCH CONSTANTS (HARDCODED FOR LOCAL TESTING) ---
+GOOGLE_API_KEY = "AIzaSyCoziUxrf0YSMpX1IDlltXziH8NKELmLkQ".strip() 
+GOOGLE_CUSTOM_SEARCH_CX = "1702b3481ec8b4dce".strip()
 # ===================================================
 
 class ActionHandler:
@@ -39,17 +37,12 @@ class ActionHandler:
     and contextual conversation history.
     """
     def __init__(self):
-        # Initialize persistent state storage
         self.user_data = self._load_data()
-        # Initialize a temporary conversation history for maintaining context within a session
         self.conversation_history = [] 
-        # NEW: Store the last successful image search query for 'more' requests
         self.last_image_query = None
         self.last_image_start_index = 1
-        # NEW: State to store media query while waiting for platform specification
         self.user_data["waiting_for_platform"] = None 
 
-        # Enhanced conversation context
         self.conversation_context = {
             "current_topic": None,
             "user_mood": "neutral",
@@ -75,7 +68,6 @@ class ActionHandler:
                     print(f"Loading user data from {USER_DATA_FILE}")
                     loaded_data = json.load(f)
                     default_data = self._get_default_data()
-                    # Ensure 'reminders' is initialized, preserving existing data if available
                     return {**default_data, **loaded_data, "waiting_for_platform": None, "reminders": loaded_data.get("reminders", [])}
             except Exception as e:
                 print(f"Error loading user data from {USER_DATA_FILE}: {e}. Using default data.")
@@ -99,11 +91,17 @@ class ActionHandler:
         except Exception as e:
             print(f"Error saving user data to {USER_DATA_FILE}: {e}")
             
-    # --- EXTERNAL API HANDLERS (The API calls remain text-based) ---
+    # --- EXTERNAL API HANDLERS ---
 
     def _get_weather(self, city: str, speak) -> bool:
         """Fetches and speaks the current weather for a specified city."""
         global WEATHER_API_KEY, WEATHER_API_URL
+        
+        if "YOUR_OPENWEATHERMAP_KEY_HERE" in WEATHER_API_KEY:
+            speak("Weather API Key is placeholder. Please update it in action_handler.py.")
+            print("ERROR: WEATHER_API_KEY is empty!", file=sys.stderr)
+            return False
+
         params = {"q": city, "appid": WEATHER_API_KEY, "units": "metric"}
         try:
             response = requests.get(WEATHER_API_URL, params=params, timeout=5)
@@ -116,15 +114,21 @@ class ActionHandler:
                 speak(f"The weather in {city.title()} is currently {weather_desc}, with a temperature of {temp} degrees Celsius.")
                 return True
             else:
-                speak(f"Sorry, I couldn't find the weather for {city.title()}. Please try another city.")
+                error_msg = data.get("message", "unknown error")
+                speak(f"Sorry, I couldn't find the weather for {city.title()}. The service reported: {error_msg}.")
                 return False
         except requests.exceptions.RequestException as e:
             print(f"Weather API Error: {e}", file=sys.stderr)
-            speak("I'm having trouble connecting to the weather service right now.")
+            speak("I'm having trouble connecting to the weather service right now. Check the API key and connection.")
             return False
 
     def _get_news(self, topic: str, speak) -> bool:
         """Fetches and speaks the top news headlines for a specified topic."""
+        
+        if "YOUR_NEWSAPI_KEY_HERE" in NEWS_API_KEY:
+            speak("News API Key is placeholder. Please update it in action_handler.py.")
+            return False
+            
         params = {"q": topic if topic else "technology", "apiKey": NEWS_API_KEY, "language": "en", "pageSize": 3 }
         try:
             response = requests.get(NEWS_API_URL, params=params, timeout=7)
@@ -145,6 +149,12 @@ class ActionHandler:
 
     def _get_nasa_apod(self, speak) -> bool:
         """Fetches and speaks the title and explanation of NASA's Astronomy Picture of the Day (APOD)."""
+        
+        if "YOUR_NASA_KEY_HERE" in NASA_API_KEY:
+            speak("NASA API Key is placeholder. Please update it in action_handler.py.")
+            print("ERROR: NASA_API_KEY is empty!", file=sys.stderr)
+            return False
+
         params = {"api_key": NASA_API_KEY}
         try:
             response = requests.get(NASA_APOD_URL, params=params, timeout=7)
@@ -179,8 +189,9 @@ class ActionHandler:
     
     def search_for_image(self, query, start_index=1, num_results=10):
         """Uses the Google Custom Search API to find multiple image URLs."""
-        if not GOOGLE_API_KEY or GOOGLE_API_KEY == "YOUR_GOOGLE_CUSTOM_SEARCH_API_KEY_HERE":
-            print("ERROR: Google API Key or CX ID is missing. Image search disabled.")
+        if "AIzaSyCoziUxrf0YSMpX1IDlltXziH8NKELmLkQ" not in GOOGLE_API_KEY or "1702b3481ec8b4dce" not in GOOGLE_CUSTOM_SEARCH_CX:
+            error_msg = "Google Image API Key or CX ID is missing. Image search disabled."
+            print(f"ERROR: {error_msg}", file=sys.stderr)
             return None
 
         search_url = "https://www.googleapis.com/customsearch/v1"
@@ -375,10 +386,13 @@ class ActionHandler:
         """Calls the Gemini API with conversation history and system instruction."""
         global API_KEY, GEMINI_API_URL
         
+        if "AIzaSyBLKlvvfpGFt-7VE9KGEawvowVLg8lQ_oM" not in API_KEY:
+            return "My connection to the knowledge base is blocked because the Gemini API key is missing or invalid. Please check the .env file."
+        
         system_prompt = """You are Senorita, a helpful, friendly, and intelligent personal assistant. You are designed to sound human and conversational, not like an AI or language model.
 
 Key traits:
-- Be warm, friendly, and engaging
+- Be warm, friendly, friendly, and engaging
 - Remember context from previous messages in the conversation
 - Ask follow-up questions when appropriate
 - Show genuine interest in helping the user
@@ -401,8 +415,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         )
         
         contents = []
-        if history:
-            contents.extend(history)
+        if history: contents.extend(history)
         
         contents.append({ "role": "user", "parts": [{ "text": user_query }] })
 
@@ -429,9 +442,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 
                 return text.replace('**', '').replace('***', '').strip() 
 
-            except requests.exceptions.Timeout:
-                return "I'm sorry, my connection timed out while searching."
-
             except requests.exceptions.RequestException as e:
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
@@ -440,8 +450,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                          return f"I received an error code {response.status_code} from the search service."
                     else:
                          print(f"CRITICAL API ERROR: {e}", file=sys.stderr)
-                         if "Invalid header value" in str(e):
-                             return "I'm experiencing an API setup error. Please check your API keys for hidden characters (like newlines)."
                          return "I'm sorry, I'm having trouble connecting to my knowledge base right now."
 
             except Exception as e:
@@ -456,9 +464,8 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         """
         query_lower = query.lower()
         platform_name = None
-        media_query = query_lower # Default media query is the whole input
+        media_query = query_lower 
 
-        # Check for specific platform keywords
         if "youtube" in query_lower or "yt" in query_lower:
             platform_name = "youtube"
         elif "spotify" in query_lower:
@@ -466,7 +473,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         elif "jiosaavn" in query_lower or "saavn" in query_lower:
             platform_name = "jiosaavn"
         
-        # If a platform is detected, strip it out of the media query
         if platform_name:
             platform_terms = [f" in {platform_name}", f" on {platform_name}", platform_name]
             
@@ -482,40 +488,32 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                  else:
                      media_query = query_lower
 
-            # Returns structured command
             return self._open_search_link(platform_name, media_query, speak)
             
         return False
 
     def _open_search_link(self, platform_name: str, query: str, speak):
-        """
-        Generates structured response for opening search results on specific platforms via deep links.
-        """
+        """Generates structured response for opening search results via deep links."""
         query_encoded = requests.utils.quote(query)
         url = None
         platform_display = platform_name.title()
 
         if platform_name == "youtube" or platform_name == "yt":
-            # Deep link for YouTube mobile search
             url = f"vnd.youtube://www.youtube.com/results?search_query={query_encoded}"
             platform_display = "YouTube"
         elif platform_name == "spotify":
-            # Deep link for Spotify search
             url = f"spotify:search:{query_encoded}"
             platform_display = "Spotify"
         elif platform_name == "jiosaavn":
-            # JioSaavn deep link (may vary by mobile OS)
             url = f"jiosaavn://search/{query_encoded}"
             platform_display = "JioSaavn"
         else:
-            # Fallback to web search (still a structured mobile action)
             url = f"https://www.google.com/search?q={query_encoded}+{platform_name}+music+video"
             platform_display = f"Google for {platform_name}"
 
         response_text = f"Searching for '{query.title()}' and opening the results on **{platform_display}** now. Enjoy!"
         speak(response_text)
         
-        # Return structured data for mobile client
         return {
             "type": "media_deep_link", 
             "url": url,
@@ -523,16 +521,11 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         }
 
     def open_app(self, app_name: str, speak):
-        """
-        Generates structured response for opening a generic application.
-        """
-        
-        # The mobile app will handle the actual opening using DeviceApps
+        """Generates structured response for opening a generic application."""
         app_name_clean = app_name.strip().title()
         response_text = f"Requesting the mobile app to open **{app_name_clean}**."
         speak(response_text)
         
-        # Return structured data for mobile client
         return {
             "type": "open_mobile_app",
             "app_name": app_name_clean,
@@ -560,8 +553,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         {{ "task": "call mom", "task_only": "call mom", "reminder_time": "2025-10-22 10:00 AM" }}
         OR (if no time is detected):
         {{ "task": "buy milk", "task_only": "buy milk", "reminder_time": null }}
-        DO NOT include any explanation or additional text outside the JSON block.
-        """
+        DO NOT include any explanation or additional text outside the JSON block."""
         
         response = self._call_gemini_api(extraction_prompt, history=[])
         
@@ -603,8 +595,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         {{ "title": "Team Meeting", "description": "Discuss project launch.", "start_time": "2025-11-20 15:00:00", "end_time": "2025-11-20 16:00:00", "all_day": false }}
         OR (if no time is detected):
         {{ "title": null, "description": null, "start_time": null, "end_time": null, "all_day": false }}
-        DO NOT include any explanation or additional text outside the JSON block.
-        """
+        DO NOT include any explanation or additional text outside the JSON block."""
         
         response = self._call_gemini_api(extraction_prompt, history=[])
         
@@ -623,8 +614,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         
         return {"title": None, "description": None, "start_time": None, "end_time": None, "all_day": False}
 
-
-    # --- REMINDER HANDLERS (UPDATED) ---
 
     def handle_set_reminder(self, query: str, speak):
         """Adds a new reminder to the user's persistent data (Feature A)."""
@@ -727,11 +716,9 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         }
 
 
-    # --- MOBILE CONTROL HANDLERS (UPDATED) ---
     def handle_mobile_control(self, intent: str, slots: dict, speak):
         """
-        Processes commands that require native mobile application actions 
-        (like toggling hardware or opening a specific app).
+        Generates structured JSON for mobile actions (toggle_hardware, open_mobile_app, change_volume).
         """
         if intent == "toggle_hardware":
             device = slots["device"]
@@ -740,7 +727,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
             response_text = f"Requesting the app to turn **{state}** the **{device}**."
             speak(response_text)
             
-            # This is the structured data the mobile app looks for
             return {
                 "type": "hardware_toggle", 
                 "device": device, 
@@ -748,7 +734,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 "text_response": response_text
             }
         
-        elif intent == "change_volume": # NEW: Volume Control
+        elif intent == "change_volume":
             state = slots["state"]
             
             if state in ["up", "down", "max", "min"]:
@@ -773,7 +759,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
             response_text = f"Requesting the app to open **{app_name.title()}**."
             speak(response_text)
             
-            # This is the structured data the mobile app looks for
             return {
                 "type": "open_mobile_app",
                 "app_name": app_name.title(),
@@ -781,8 +766,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
             }
         
         return {"type": "text", "content": "Mobile control command recognized but not processed."}
-    
-    # --- END MOBILE CONTROL HANDLERS ---
 
     def handle_get_directions(self, query: str, speak):
         """Generates structured response for opening Google Maps for a search query."""
@@ -796,7 +779,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         answer = f"Opening Google Maps now to search for **{query_encoded.title()}**."
         speak(answer)
         
-        # Return structured data for mobile client
         return {
             "type": "maps_search",
             "query": query_encoded,
@@ -804,32 +786,26 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         }
         
     def get_user_name(self):
-        """Returns the user's stored name for the frontend."""
         return self.user_data.get('name', 'friend')
 
-    # --- MAIN HANDLER ---
+
     def handle(self, intent: str, slots: dict, speak):
         
         current_query = None 
         answer = None
         local_intent = intent 
 
-        # Reset history for non-conversational/side-effect intents
         if local_intent in ["open_app", "time", "time_in_location", "set_name", "recall_name", "greet", "set_reminder", "recall_notes", "get_directions", "toggle_hardware", "open_mobile_app", "change_volume", "set_calendar_event", "clear_notes"]:
             self.conversation_history = [] 
         
-        # --- 0. WAKE WORD (NEW) ---
         if local_intent == "wake_word":
             user_name = self.user_data.get("name", "there")
             answer = f"Yes, {user_name}? How can I help you?"
             speak(answer)
             return {"type": "text", "content": answer}
         
-        # --- 1. HANDLE PLATFORM FOLLOW-UP (Second Turn) ---
         if self.user_data["waiting_for_platform"] and "query" in slots:
-            
             user_input = slots["query"].lower().strip()
-            
             platform_name = user_input.split()[0]
             if "youtube" in user_input or "yt" in user_input:
                 platform_name = "youtube"
@@ -841,32 +817,23 @@ Answer the user's query clearly and helpfully, maintaining context and building 
             media_query = self.user_data["waiting_for_platform"]
             self.user_data["waiting_for_platform"] = None 
 
-            # Returns structured command
             return self._open_search_link(platform_name, media_query, speak)
         
-        # --- 2. MEDIA REQUEST INTENT (First Turn Logic) ---
         if local_intent == "media_request":
             query = slots.get("query", "")
-            
-            # 2a. Check if platform is already specified
             result = self._check_for_immediate_platform_and_launch(query, speak)
             if result:
-                return result # Returns structured media_deep_link
+                return result 
             
-            # 2b. If not launching immediately, check if it's an image request.
             if any(term in query.lower() for term in ["image", "picture", "photo", "show me"]):
                 return self.handle_image_request(query, speak)
 
-            # 2c. If it's a generic media query without a platform, ask for the platform.
             return self.handle("play_music", {"slot0": query}, speak)
 
 
         try:
-            # --- 3. MOBILE CONTROL INTENTS (NEW) ---
             if local_intent in ["toggle_hardware", "open_mobile_app", "change_volume"]:
                 return self.handle_mobile_control(local_intent, slots, speak)
-            
-            # --- 4. Other Explicitly Handled Intents (Same as before) ---
             
             elif local_intent in ["can_play_music", "can_play_video", "play_music", "play_video"]:
                 query = slots.get("slot0")
@@ -886,25 +853,23 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 speak(answer)
                 return {"type": "text", "content": answer}
 
-            # --- REMINDER/MAPS INTENTS ---
             elif local_intent == "set_reminder":
                 query = slots.get("query")
                 return self.handle_set_reminder(query, speak)
             
-            elif local_intent == "set_calendar_event": # NEW: Calendar Event
+            elif local_intent == "set_calendar_event":
                 query = slots.get("query")
                 return self.handle_set_calendar_event(query, speak)
             
             elif local_intent == "recall_notes":
                 return self.handle_recall_notes(speak)
             
-            elif local_intent == "clear_notes": # NEW: Clear Notes
+            elif local_intent == "clear_notes": 
                 return self.handle_clear_notes(speak)
             
             elif local_intent == "get_directions":
                 query = slots.get("query")
-                return self.handle_get_directions(query, speak) # Returns structured maps_search
-            # ---------------------------
+                return self.handle_get_directions(query, speak) 
             
             elif local_intent == "set_name":
                 name = slots.get("name").strip()
@@ -970,16 +935,17 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 return {"type": "text", "content": answer}
             
             elif local_intent == "time":
-                now = datetime.now().strftime("%I:%M %p")
-                answer = f"The current time here is {now}"
+                # FIX: Set timezone to Asia/Kolkata (IST)
+                kolkata_tz = pytz.timezone('Asia/Kolkata')
+                now_ist = datetime.now(kolkata_tz).strftime("%I:%M %p %Z")
+                answer = f"The current time in India is {now_ist}"
                 speak(answer)
                 return {"type": "text", "content": answer}
 
             elif local_intent == "open_app":
                 app = slots.get("slot0", "").strip()
-                return self.open_app(app, speak) # Returns structured open_mobile_app
+                return self.open_app(app, speak)
             
-            # --- 5. Conversational Intents (Gemini calls) ---
             elif local_intent == "how_are_you":
                 current_query = "The user just said they are doing good/fine/well. Respond with a short, human-like acknowledgment (e.g., 'That's great!') and then ask how their day is going or what they are up to. Do not mention being an AI or a model."
                 answer = self._call_gemini_api(current_query, self.conversation_history)
@@ -994,7 +960,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 ]
                 answer = random.choice(greetings)
             
-            # --- 6. Search and Fallback Logic (Gemini calls) ---
             elif local_intent == "search":
                 query = slots.get("query")
                 if query:
@@ -1009,7 +974,6 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 else:
                     answer = "I need a query to search for."
 
-            # --- 7. Final Fallback for Unknown Command (Gemini calls) ---
             else:
                 fallback_query = slots.get("query", "")
                 
@@ -1025,12 +989,10 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 else:
                     answer = "Sorry, I didn't recognize that command. Try 'open chrome' or 'what's the time'."
                     
-            # --- 8. Finalize Conversation / Search Intents ---
             if answer:
                 if local_intent in ["how_are_you", "greet", "search"] or answer in ["Personal info saved.", "I need a query to search for."]:
                     speak(answer)
                 
-                # Update conversation history 
                 if current_query:
                     self.conversation_history.append({"role": "user", "parts": [{"text": current_query}]})
                     self.conversation_history.append({"role": "model", "parts": [{"text": answer}]})
@@ -1039,10 +1001,8 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                     if len(self.conversation_history) > MAX_HISTORY_LENGTH:
                         self.conversation_history = self.conversation_history[-MAX_HISTORY_LENGTH:]
                 
-                # Update conversation context
                 self._update_conversation_context(current_query or "", "text", answer)
             
-            # Final Return for conversational/search paths
             return {"type": "text", "content": answer} if answer else {"type": "text", "content": "Command processed."}
 
         except Exception as e:
