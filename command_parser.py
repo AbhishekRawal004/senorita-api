@@ -5,7 +5,6 @@ class CommandParser:
     def __init__(self):
         self.patterns = [
             # 0. WAKE WORD (New)
-            # This is a simple check; a real app needs a dedicated wake word engine
             ("wake_word", re.compile(r"^(hey baby|hey babe|hey senorita)", re.IGNORECASE)),
             
             # 1. PERSONALIZATION
@@ -27,14 +26,21 @@ class CommandParser:
             ("get_apod", re.compile(r"\b(?:what's|show me) the nasa picture of the day\b", re.IGNORECASE)),
             ("get_trivia", re.compile(r"\b(?:tell me|give me) a trivia(?: question)?\b", re.IGNORECASE)),
             
-            # 5. MOBILE HARDWARE/APP CONTROL (New)
+            # 5. MOBILE HARDWARE/APP CONTROL (Updated)
+            # Toggles like Wi-Fi, Torch
             ("toggle_hardware", re.compile(r"\bturn (on|off) (torch|flashlight|wifi|bluetooth|data)\b", re.IGNORECASE)),
+            # NEW: Volume control
+            ("change_volume", re.compile(r"\b(?:turn )?volume (up|down|max|min)\b", re.IGNORECASE)),
             ("open_mobile_app", re.compile(r"\bopen (camera|settings|gallery|photos|(.+))", re.IGNORECASE)),
             
-            # --- REMINDERS & NOTES ---
-            # This pattern captures the full reminder query
+            # --- REMINDERS, CALENDAR & NOTES (Updated) ---
+            # NEW: Calendar event
+            ("set_calendar_event", re.compile(r"\b(?:schedule|set up|create) a (?:meeting|event|reminder for my calendar) (.+)", re.IGNORECASE)),
+            # Simple list reminder
             ("set_reminder", re.compile(r"\b(?:remember to|take a note|add to my list|note|remind me to)(?: that)? (.+)", re.IGNORECASE)),
             ("recall_notes", re.compile(r"\b(?:what is in my notes|what do i need to remember|show me my reminders|read my list|what's on my list)\b", re.IGNORECASE)),
+            # NEW: Clear notes command
+            ("clear_notes", re.compile(r"\b(?:clear|delete|remove) my (?:notes|reminders|list)\b", re.IGNORECASE)),
             
             # --- DIRECTIONS & MAPS ---
             ("get_directions", re.compile(r"\b(?:show me|get|navigate) directions (?:to |for |me to )?(.+)", re.IGNORECASE)),
@@ -54,32 +60,38 @@ class CommandParser:
                 slots = {}
                 # Handle special case for wake word, which might precede another command
                 if intent == "wake_word":
-                    # Remove the wake word from the start of the text and try to parse again
                     remaining_text = text[m.end():].strip()
                     if remaining_text:
-                        return self.parse(remaining_text) # Re-parse remaining text
+                        return self.parse(remaining_text)
                     
-                    # If only the wake word was spoken, treat it as a special intent
                     return "wake_word", {"phrase": m.group(1)}
                 
                 slots = {}
-                for i, g in enumerate(m.groups()):
-                    # Set the main query slot for media, directions, reminders, and general search
-                    if intent in ["media_request", "search", "set_reminder", "get_directions"]:
-                        slots["query"] = g
-                    # Map other specific slots
-                    elif intent == "set_name":
-                        slots["name"] = g
-                    elif intent in ["time_in_location", "get_weather"]:
-                        slots["location"] = g
-                    elif intent == "get_news":
-                        slots["topic"] = g
-                    elif intent == "toggle_hardware":
-                        slots["state"] = m.group(1).lower()
-                        slots["device"] = m.group(2).lower()
-                    elif intent == "open_mobile_app":
-                        slots["app_name"] = m.group(1).lower()
-                    else:
-                        slots[f"slot{i}"] = g
+                # Get the first captured group as the main slot/query
+                g = m.group(1) if m.groups() and m.group(1) is not None else (m.group(2) if m.groups() and len(m.groups()) > 1 and m.group(2) is not None else None)
+
+                # Set the main query slot for media, directions, reminders, and general search
+                if intent in ["media_request", "search", "set_reminder", "set_calendar_event", "get_directions"]:
+                    slots["query"] = m.group(m.lastindex) if m.lastindex else g
+                # Map other specific slots
+                elif intent == "set_name":
+                    slots["name"] = m.group(1)
+                elif intent in ["time_in_location", "get_weather"]:
+                    slots["location"] = m.group(1)
+                elif intent == "get_news":
+                    slots["topic"] = m.group(1)
+                elif intent == "toggle_hardware":
+                    slots["state"] = m.group(1).lower()
+                    slots["device"] = m.group(2).lower()
+                elif intent == "change_volume":
+                    slots["state"] = m.group(1).lower()
+                elif intent == "open_mobile_app":
+                    # Logic to capture the app name, even if it matches the general (.+) group
+                    app_match = re.search(r"\bopen (camera|settings|gallery|photos|(.+))", text, re.IGNORECASE)
+                    if app_match:
+                         # Prioritize the named group (1) or the catch-all group (2)
+                         app_name = next(g for g in reversed(app_match.groups()) if g is not None)
+                         slots["app_name"] = app_name
+                    
                 return intent, slots
-        return "unknown", {}
+        return "unknown", {"query": text}
