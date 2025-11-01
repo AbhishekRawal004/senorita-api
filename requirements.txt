@@ -5,5 +5,8 @@ flask-cors
 pytz
 gTTs
 python-dotenv
+sounddevice
+pyttsx3
+vosk
 
 
