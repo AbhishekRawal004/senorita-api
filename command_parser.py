@@ -27,7 +27,7 @@ class CommandParser:
             ("get_trivia", re.compile(r"\b(?:tell me|give me) a trivia(?: question)?\b", re.IGNORECASE)),
             
             # 5. CALLING - Added call commands
-            ("make_call", re.compile(r"^(?:(?:(make\s+(?:a\s+)?call|call)(?:\s+to\s+|\s+))?(?:(a|an|the|me)\s+)?([a-zA-Z0-9\s]+?)(?:\s+(?:on|in)\s+(whatsapp|wa))?|(?:make\s+(?:a\s+)?call|call)(?:\s+to\s+|\s+)([a-zA-Z0-9\s]+?)(?:\s+(?:on|in)\s+(whatsapp|wa))?)(?:\s+please)?[.?!]?$", re.IGNORECASE)),
+            ("make_call", re.compile(r"^(?:(make(?:\s+a)?\s+call|call)(?:\s+to\s+|\s+))?(?:(a|an|the|me)\s+)?([a-zA-Z0-9\s]+?)(?:\s+(?:on|in)\s+(whatsapp|wa))?\s*$", re.IGNORECASE)),
             
             # 6. MESSAGING - Made more specific and moved before search
             ("send_message", re.compile(r"^(?:(?:send|text|message)(?:\s+(?:a |an |the |me )?)?(.+?)(?:\s+to\s+)([a-zA-Z0-9\s]+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?|(?:send|text|message)\s+([a-zA-Z0-9\s]+?)\s+(.+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?)(?:\s+please)?[.?!]?$", re.IGNORECASE)),
@@ -88,26 +88,13 @@ class CommandParser:
                     # Debug: Print all groups to see what was captured
                     print(f"DEBUG - Make call groups: {m.groups()}")
                     
-                    # Extract contact and platform based on which groups matched
-                    contact = None
-                    platform = None
-                    
-                    # Format 1: "make call to [contact] [on whatsapp]" or "call [contact] [on whatsapp]"
-                    if m.group(3):  # Contact name is in group 3
-                        contact = m.group(3).strip()
-                        platform = m.group(4).lower() if m.group(4) else None
-                        print(f"DEBUG - Format 1 - Contact: '{contact}', Platform: '{platform}'")
-                    # Format 2: "make call to [contact]" or "call [contact]"
-                    elif m.group(5):  # Contact name is in group 5
-                        contact = m.group(5).strip()
-                        platform = m.group(6).lower() if m.group(6) else None
-                        print(f"DEBUG - Format 2 - Contact: '{contact}', Platform: '{platform}'")
-                    else:
-                        print("DEBUG - No contact found in command")
-                        return "unknown", {"query": text}
+                    # Group 3 is the contact name, Group 4 is the platform
+                    contact = m.group(3).strip() if m.group(3) else None
+                    platform = m.group(4).lower() if m.group(4) else 'phone'
                     
                     # Clean up contact name (remove any trailing spaces or platform mentions)
-                    contact = re.sub(r'\s+(?:on|in|using|via|with)\s+(whatsapp|wa)?$', '', contact, flags=re.IGNORECASE).strip()
+                    if contact:
+                        contact = re.sub(r'\s+(?:on|in|using|via|with)\s+(whatsapp|wa)?$', '', contact, flags=re.IGNORECASE).strip()
                     
                     # Map platform names to standard ones
                     platform_map = {
@@ -115,8 +102,11 @@ class CommandParser:
                         'wa': 'whatsapp'
                     }
                     
-                    # Default to phone if no platform specified
-                    platform = platform_map.get((platform or '').lower(), 'phone')
+                    platform = platform_map.get(platform, 'phone')
+                    
+                    if not contact:
+                        print("DEBUG - No contact found in command")
+                        return "unknown", {"query": text}
                     
                     print(f"DEBUG - Final - Contact: '{contact}', Platform: '{platform}'")
                     
