@@ -46,7 +46,7 @@ def send_command():
         response = actions.handle(intent, slots, app_speak_wrapper)
         
         # 3. Format Response
-        mobile_command_types = ["hardware_toggle", "open_mobile_app", "maps_search", "media_deep_link", "add_calendar_event"]
+        mobile_command_types = ["hardware_toggle", "open_mobile_app", "maps_search", "media_deep_link", "add_calendar_event", "send_message"]
         
         if isinstance(response, dict) and response.get("type") in mobile_command_types:
             response_text = response.get("text_response", response.get("content", "Command processed."))

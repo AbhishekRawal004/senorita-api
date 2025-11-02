@@ -26,7 +26,10 @@ class CommandParser:
             ("get_apod", re.compile(r"\b(?:what's|show me) the nasa picture of the day\b", re.IGNORECASE)),
             ("get_trivia", re.compile(r"\b(?:tell me|give me) a trivia(?: question)?\b", re.IGNORECASE)),
             
-            # 5. MOBILE HARDWARE/APP CONTROL (Updated)
+            # 5. MESSAGING - Made more specific and moved before search
+            ("send_message", re.compile(r"^(?:send|text|message)\s+(?:a |an |the |me )?(.+?)(?:\s+to\s+)([a-zA-Z0-9\s]+?)(?:\s+from contacts?|\s+in contacts?|\s+on whatsapp|\s+on messenger)?(?:\s+please)?[.?!]?$", re.IGNORECASE)),
+            
+            # 6. MOBILE HARDWARE/APP CONTROL (Updated)
             ("toggle_hardware", re.compile(r"\bturn (on|off) (torch|flashlight|wifi|bluetooth|data)\b", re.IGNORECASE)),
             ("change_volume", re.compile(r"\b(?:turn )?volume (up|down|max|min)\b", re.IGNORECASE)),
             ("open_mobile_app", re.compile(r"\bopen\s+(.+)", re.IGNORECASE)), 
@@ -78,6 +81,10 @@ class CommandParser:
                     slots["app_name"] = m.group(1).lower() 
                 elif intent == "open_app":
                     slots["slot0"] = m.group(1)
+                elif intent == "send_message":
+                    # Group 1 is the message, Group 2 is the contact
+                    slots["slot0"] = m.group(1).strip()
+                    slots["slot1"] = m.group(2).strip()
                     
                 return intent, slots
         return "unknown", {"query": text}

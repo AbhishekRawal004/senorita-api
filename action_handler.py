@@ -789,6 +789,24 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         return self.user_data.get('name', 'friend')
 
 
+    def handle_send_message(self, message: str, contact_name: str, speak):
+        """Handles sending a message to a contact."""
+        try:
+            # This will be handled by the mobile app
+            return {
+                "type": "send_message",
+                "contact_name": contact_name,
+                "message": message,
+                "text_response": f"Sending message to {contact_name}."  # Shorter, more direct response
+            }
+        except Exception as e:
+            error_msg = f"Error preparing to send message: {e}"
+            print(error_msg, file=sys.stderr)
+            return {
+                "type": "text", 
+                "content": "I couldn't prepare the message to send."
+            }
+
     def handle(self, intent: str, slots: dict, speak):
         
         current_query = None 
@@ -942,6 +960,22 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 speak(answer)
                 return {"type": "text", "content": answer}
 
+            elif local_intent == "send_message":
+                # The message is in slot0 and contact is in slot1 due to the regex pattern
+                message = slots.get("slot0", "").strip()
+                contact = slots.get("slot1", "").strip()
+                if message and contact:
+                    # Clear conversation history to prevent Gemini from overriding our response
+                    self.conversation_history = []
+                    return self.handle_send_message(message, contact, speak)
+                else:
+                    answer = "Please specify both a message and a contact name."
+                    speak(answer)
+                    return {
+                        "type": "text", 
+                        "content": answer
+                    }
+                    
             elif local_intent == "open_app":
                 app = slots.get("slot0", "").strip()
                 return self.open_app(app, speak)
