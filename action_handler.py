@@ -789,6 +789,33 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         return self.user_data.get('name', 'friend')
 
 
+    def handle_make_call(self, contact_name: str, speak, platform='phone'):
+        """Handles making a call to a contact through different platforms.
+        
+        Args:
+            contact_name (str): Name of the contact to call
+            speak (function): Callback function for speech output
+            platform (str, optional): The platform to use for the call (phone, whatsapp, etc.)
+            
+        Returns:
+            dict: A structured response with call details
+        """
+        try:
+            response = {
+                "type": "make_call",
+                "contact_name": contact_name,
+                "platform": platform,
+                "text_response": f"Calling {contact_name} on {platform}."
+            }
+            return response
+        except Exception as e:
+            error_msg = f"Error preparing to make call: {e}"
+            print(error_msg, file=sys.stderr)
+            return {
+                "type": "text",
+                "content": "I couldn't prepare to make the call."
+            }
+
     def handle_send_message(self, message: str, contact_name: str, speak, platform=None):
         """Handles sending a message to a contact through different platforms.
         
@@ -981,11 +1008,28 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 speak(answer)
                 return {"type": "text", "content": answer}
 
+            elif local_intent == "make_call":
+                # Extract slots from the parsed command
+                contact = slots.get("contact")
+                platform = slots.get("platform", "phone")
+                
+                if not contact:
+                    answer = "Please specify a contact name to call."
+                    speak(answer)
+                    return {
+                        "type": "text",
+                        "content": answer
+                    }
+                
+                # Clear conversation history to prevent Gemini from overriding our response
+                self.conversation_history = []
+                return self.handle_make_call(contact, speak, platform=platform)
+                
             elif local_intent == "send_message":
                 # Extract slots from the parsed command
                 message = slots.get("message")
                 contact = slots.get("contact")
-                platform = slots.get("platform")
+                platform = slots.get("platform", "sms")
                 
                 if not message or not contact:
                     answer = "Please specify both a message and a contact name."
@@ -997,7 +1041,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 
                 # Clear conversation history to prevent Gemini from overriding our response
                 self.conversation_history = []
-                return self.handle_send_message(message, contact, speak, platform=platform)              
+                return self.handle_send_message(message, contact, speak, platform=platform)
 
             elif local_intent == "open_app":
                 app = slots.get("slot0", "").strip()

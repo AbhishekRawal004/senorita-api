@@ -26,7 +26,10 @@ class CommandParser:
             ("get_apod", re.compile(r"\b(?:what's|show me) the nasa picture of the day\b", re.IGNORECASE)),
             ("get_trivia", re.compile(r"\b(?:tell me|give me) a trivia(?: question)?\b", re.IGNORECASE)),
             
-            # 5. MESSAGING - Made more specific and moved before search
+            # 5. CALLING - Added call commands
+            ("make_call", re.compile(r"^(?:(?:make a call|call|phone|dial|ring)(?:\s+(?:to |for )?| )(?:a |an |the |me )?([a-zA-Z0-9\s]+?)(?:\s+on\s+(?:phone|mobile|whatsapp|telegram|signal))?|(?:make a call|call|phone|dial|ring)(?:\s+to\s+|\s+)([a-zA-Z0-9\s]+?)(?:\s+on\s+(?:phone|mobile|whatsapp|telegram|signal))?)(?:\s+please)?[.?!]?$", re.IGNORECASE)),
+            
+            # 6. MESSAGING - Made more specific and moved before search
             ("send_message", re.compile(r"^(?:(?:send|text|message)(?:\s+(?:a |an |the |me )?)?(.+?)(?:\s+to\s+)([a-zA-Z0-9\s]+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?|(?:send|text|message)\s+([a-zA-Z0-9\s]+?)\s+(.+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?)(?:\s+please)?[.?!]?$", re.IGNORECASE)),
             
             # 6. MOBILE HARDWARE/APP CONTROL (Updated)
@@ -81,6 +84,17 @@ class CommandParser:
                     slots["app_name"] = m.group(1).lower() 
                 elif intent == "open_app":
                     slots["slot0"] = m.group(1)
+                elif intent == "make_call":
+                    # Handle both formats:
+                    # 1. "call [contact] [on platform]" (group 1 or 3)
+                    # 2. "call to [contact] [on platform]" (group 2 or 4)
+                    if m.group(1):
+                        slots["contact"] = m.group(1).strip()
+                        slots["platform"] = m.group(2).lower() if m.group(2) else 'phone'
+                    elif m.group(3):
+                        slots["contact"] = m.group(3).strip()
+                        slots["platform"] = m.group(4).lower() if m.group(4) else 'phone'
+                        
                 elif intent == "send_message":
                     # Handle both formats:
                     # 1. "send [message] to [contact] [on platform]" (groups 1, 2, 3)
@@ -88,11 +102,11 @@ class CommandParser:
                     if m.group(1) and m.group(2):
                         slots["message"] = m.group(1).strip()
                         slots["contact"] = m.group(2).strip()
-                        slots["platform"] = m.group(3).lower() if m.group(3) else None
+                        slots["platform"] = m.group(3).lower() if m.group(3) else 'sms'
                     elif m.group(4) and m.group(5):
                         slots["contact"] = m.group(4).strip()
                         slots["message"] = m.group(5).strip()
-                        slots["platform"] = m.group(6).lower() if m.group(6) else None
+                        slots["platform"] = m.group(6).lower() if m.group(6) else 'sms'
                     
                 return intent, slots
         return "unknown", {"query": text}
