@@ -27,7 +27,7 @@ class CommandParser:
             ("get_trivia", re.compile(r"\b(?:tell me|give me) a trivia(?: question)?\b", re.IGNORECASE)),
             
             # 5. MESSAGING - Made more specific and moved before search
-            ("send_message", re.compile(r"^(?:send|text|message)\s+(?:a |an |the |me )?(.+?)(?:\s+to\s+)([a-zA-Z0-9\s]+?)(?:\s+from contacts?|\s+in contacts?|\s+on whatsapp|\s+on messenger)?(?:\s+please)?[.?!]?$", re.IGNORECASE)),
+            ("send_message", re.compile(r"^(?:(?:send|text|message)(?:\s+(?:a |an |the |me )?)?(.+?)(?:\s+to\s+)([a-zA-Z0-9\s]+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?|(?:send|text|message)\s+([a-zA-Z0-9\s]+?)\s+(.+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?)(?:\s+please)?[.?!]?$", re.IGNORECASE)),
             
             # 6. MOBILE HARDWARE/APP CONTROL (Updated)
             ("toggle_hardware", re.compile(r"\bturn (on|off) (torch|flashlight|wifi|bluetooth|data)\b", re.IGNORECASE)),
@@ -82,9 +82,17 @@ class CommandParser:
                 elif intent == "open_app":
                     slots["slot0"] = m.group(1)
                 elif intent == "send_message":
-                    # Group 1 is the message, Group 2 is the contact
-                    slots["slot0"] = m.group(1).strip()
-                    slots["slot1"] = m.group(2).strip()
+                    # Handle both formats:
+                    # 1. "send [message] to [contact] [on platform]" (groups 1, 2, 3)
+                    # 2. "send [contact] [message] [on platform]" (groups 4, 5, 6)
+                    if m.group(1) and m.group(2):
+                        slots["message"] = m.group(1).strip()
+                        slots["contact"] = m.group(2).strip()
+                        slots["platform"] = m.group(3).lower() if m.group(3) else None
+                    elif m.group(4) and m.group(5):
+                        slots["contact"] = m.group(4).strip()
+                        slots["message"] = m.group(5).strip()
+                        slots["platform"] = m.group(6).lower() if m.group(6) else None
                     
                 return intent, slots
         return "unknown", {"query": text}

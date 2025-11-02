@@ -789,21 +789,42 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         return self.user_data.get('name', 'friend')
 
 
-    def handle_send_message(self, message: str, contact_name: str, speak):
-        """Handles sending a message to a contact."""
+    def handle_send_message(self, message: str, contact_name: str, speak, platform=None):
+        """Handles sending a message to a contact through different platforms.
+        
+        Args:
+            message (str): The message content to send
+            contact_name (str): Name of the contact
+            speak (function): Callback function for speech output
+            platform (str, optional): The messaging platform to use (whatsapp, messenger, etc.)
+            
+        Returns:
+            dict: A structured response with message details
+            message: The message content to send
+            contact_name: Name of the contact
+            speak: Callback function for speech output
+            platform: Optional platform (whatsapp, messenger, etc.)
+        """
         try:
-            # This will be handled by the mobile app
-            return {
+            # Clean up the message (remove any trailing punctuation)
+            message = message.rstrip(' .,!?;:')
+            
+            # If platform is None, default to SMS
+            platform = platform.lower() if platform else 'sms'
+            
+            response = {
                 "type": "send_message",
                 "contact_name": contact_name,
                 "message": message,
-                "text_response": f"Sending message to {contact_name}."  # Shorter, more direct response
+                "platform": platform,
+                "text_response": f"Sending message to {contact_name} on {platform}."
             }
+            return response
         except Exception as e:
             error_msg = f"Error preparing to send message: {e}"
             print(error_msg, file=sys.stderr)
             return {
-                "type": "text", 
+                "type": "text",
                 "content": "I couldn't prepare the message to send."
             }
 
@@ -961,21 +982,23 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 return {"type": "text", "content": answer}
 
             elif local_intent == "send_message":
-                # The message is in slot0 and contact is in slot1 due to the regex pattern
-                message = slots.get("slot0", "").strip()
-                contact = slots.get("slot1", "").strip()
-                if message and contact:
-                    # Clear conversation history to prevent Gemini from overriding our response
-                    self.conversation_history = []
-                    return self.handle_send_message(message, contact, speak)
-                else:
+                # Extract slots from the parsed command
+                message = slots.get("message")
+                contact = slots.get("contact")
+                platform = slots.get("platform")
+                
+                if not message or not contact:
                     answer = "Please specify both a message and a contact name."
                     speak(answer)
                     return {
-                        "type": "text", 
+                        "type": "text",
                         "content": answer
                     }
-                    
+                
+                # Clear conversation history to prevent Gemini from overriding our response
+                self.conversation_history = []
+                return self.handle_send_message(message, contact, speak, platform=platform)              
+
             elif local_intent == "open_app":
                 app = slots.get("slot0", "").strip()
                 return self.open_app(app, speak)
