@@ -26,8 +26,8 @@ class CommandParser:
             ("get_apod", re.compile(r"\b(?:what's|show me) the nasa picture of the day\b", re.IGNORECASE)),
             ("get_trivia", re.compile(r"\b(?:tell me|give me) a trivia(?: question)?\b", re.IGNORECASE)),
             
-            # 5. CALLING - Added call commands
-            ("make_call", re.compile(r"^(?:(make(?:\s+a)?\s+call|call)(?:\s+to\s+|\s+))?(?:(a|an|the|me)\s+)?([a-zA-Z0-9\s]+?)(?:\s+(?:on|in)\s+(whatsapp|wa))?\s*$", re.IGNORECASE)),
+            # 5. CALLING - Basic call command
+            ("make_call", re.compile(r"^(?:call|make\s+a?\s*call\s+to\s+)([a-zA-Z0-9\s]+?)$", re.IGNORECASE)),
             
             # 6. MESSAGING - Made more specific and moved before search
             ("send_message", re.compile(r"^(?:(?:send|text|message)(?:\s+(?:a |an |the |me )?)?(.+?)(?:\s+to\s+)([a-zA-Z0-9\s]+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?|(?:send|text|message)\s+([a-zA-Z0-9\s]+?)\s+(.+?)(?:\s+(?:on |in )?(whatsapp|messenger|telegram|signal))?)(?:\s+please)?[.?!]?$", re.IGNORECASE)),
@@ -85,33 +85,9 @@ class CommandParser:
                 elif intent == "open_app":
                     slots["slot0"] = m.group(1)
                 elif intent == "make_call":
-                    # Debug: Print all groups to see what was captured
-                    print(f"DEBUG - Make call groups: {m.groups()}")
-                    
-                    # Group 3 is the contact name, Group 4 is the platform
-                    contact = m.group(3).strip() if m.group(3) else None
-                    platform = m.group(4).lower() if m.group(4) else 'phone'
-                    
-                    # Clean up contact name (remove any trailing spaces or platform mentions)
-                    if contact:
-                        contact = re.sub(r'\s+(?:on|in|using|via|with)\s+(whatsapp|wa)?$', '', contact, flags=re.IGNORECASE).strip()
-                    
-                    # Map platform names to standard ones
-                    platform_map = {
-                        'whatsapp': 'whatsapp',
-                        'wa': 'whatsapp'
-                    }
-                    
-                    platform = platform_map.get(platform, 'phone')
-                    
-                    if not contact:
-                        print("DEBUG - No contact found in command")
-                        return "unknown", {"query": text}
-                    
-                    print(f"DEBUG - Final - Contact: '{contact}', Platform: '{platform}'")
-                    
+                    contact = m.group(1).strip()
+                    print(f"Calling contact: {contact}")
                     slots["contact"] = contact
-                    slots["platform"] = platform
                         
                 elif intent == "send_message":
                     # Handle both formats:

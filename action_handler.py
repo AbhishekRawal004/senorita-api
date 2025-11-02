@@ -789,61 +789,25 @@ Answer the user's query clearly and helpfully, maintaining context and building 
         return self.user_data.get('name', 'friend')
 
 
-    def handle_make_call(self, contact_name: str, speak, platform='phone'):
-        """Handles making a call to a contact through different platforms.
+    def handle_make_call(self, contact_name: str, speak):
+        """Handles making a phone call to a contact.
         
         Args:
             contact_name (str): Name of the contact to call
             speak (function): Callback function for speech output
-            platform (str, optional): The platform to use for the call (phone, whatsapp, etc.)
             
         Returns:
             dict: A structured response with call details
         """
         try:
-            print(f"DEBUG - handle_make_call - Contact: '{contact_name}', Platform: '{platform}'")
-            
             # Clean up the contact name
             contact_name = contact_name.strip()
-            
-            # Ensure platform is lowercase and handle variations
-            platform = str(platform).lower() if platform else 'phone'
-            
-            # Map common platform names to standard ones
-            platform_map = {
-                'whatsapp': 'whatsapp',
-                'wa': 'whatsapp',
-                'telegram': 'telegram',
-                'tg': 'telegram',
-                'signal': 'signal',
-                'phone': 'phone',
-                'mobile': 'phone',
-                'call': 'phone',
-                'video': 'phone',
-                'regular': 'phone',
-                'normal': 'phone'
-            }
-            
-            # Get the standard platform name
-            platform = platform_map.get(platform, 'phone')
-            
-            # Get the display name for the platform
-            display_map = {
-                'whatsapp': 'WhatsApp',
-                'telegram': 'Telegram',
-                'signal': 'Signal',
-                'phone': 'phone'
-            }
-            display_platform = display_map.get(platform, platform)
             
             response = {
                 "type": "make_call",
                 "contact_name": contact_name,
-                "platform": platform,
-                "text_response": f"Calling {contact_name} on {display_platform}.",
+                "text_response": f"Calling {contact_name}.",
                 "debug_info": {
-                    "original_platform": platform,
-                    "normalized_platform": platform,
                     "contact_name": contact_name
                 }
             }
@@ -1049,9 +1013,8 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 return {"type": "text", "content": answer}
 
             elif local_intent == "make_call":
-                # Extract slots from the parsed command
+                # Extract contact from the parsed command
                 contact = slots.get("contact")
-                platform = slots.get("platform", "phone")
                 
                 if not contact:
                     answer = "Please specify a contact name to call."
@@ -1063,7 +1026,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
                 
                 # Clear conversation history to prevent Gemini from overriding our response
                 self.conversation_history = []
-                return self.handle_make_call(contact, speak, platform=platform)
+                return self.handle_make_call(contact, speak)
                 
             elif local_intent == "send_message":
                 # Extract slots from the parsed command
