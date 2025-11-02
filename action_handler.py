@@ -801,11 +801,51 @@ Answer the user's query clearly and helpfully, maintaining context and building 
             dict: A structured response with call details
         """
         try:
+            print(f"DEBUG - handle_make_call - Contact: '{contact_name}', Platform: '{platform}'")
+            
+            # Clean up the contact name
+            contact_name = contact_name.strip()
+            
+            # Ensure platform is lowercase and handle variations
+            platform = str(platform).lower() if platform else 'phone'
+            
+            # Map common platform names to standard ones
+            platform_map = {
+                'whatsapp': 'whatsapp',
+                'wa': 'whatsapp',
+                'telegram': 'telegram',
+                'tg': 'telegram',
+                'signal': 'signal',
+                'phone': 'phone',
+                'mobile': 'phone',
+                'call': 'phone',
+                'video': 'phone',
+                'regular': 'phone',
+                'normal': 'phone'
+            }
+            
+            # Get the standard platform name
+            platform = platform_map.get(platform, 'phone')
+            
+            # Get the display name for the platform
+            display_map = {
+                'whatsapp': 'WhatsApp',
+                'telegram': 'Telegram',
+                'signal': 'Signal',
+                'phone': 'phone'
+            }
+            display_platform = display_map.get(platform, platform)
+            
             response = {
                 "type": "make_call",
                 "contact_name": contact_name,
                 "platform": platform,
-                "text_response": f"Calling {contact_name} on {platform}."
+                "text_response": f"Calling {contact_name} on {display_platform}.",
+                "debug_info": {
+                    "original_platform": platform,
+                    "normalized_platform": platform,
+                    "contact_name": contact_name
+                }
             }
             return response
         except Exception as e:
