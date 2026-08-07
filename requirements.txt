@@ -8,5 +8,5 @@ python-dotenv
 sounddevice
 pyttsx3
 vosk
-
+google-genai
 
