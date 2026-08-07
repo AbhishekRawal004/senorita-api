@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 
 import os
 
+from actions.weather import WeatherAction
+
 # --- BASE CONSTANTS (HARDCODED FOR LOCAL TESTING) ---
 # WARNING: DELETE THESE KEYS BEFORE DEPLOYMENT.
 API_KEY = "AIzaSyBLKlvvfpGFt-7VE9KGEawvowVLg8lQ_oM".strip() 
@@ -42,6 +44,11 @@ class ActionHandler:
         self.last_image_query = None
         self.last_image_start_index = 1
         self.user_data["waiting_for_platform"] = None 
+
+        self.weather_action = WeatherAction(
+    WEATHER_API_KEY,
+    WEATHER_API_URL
+)
 
         self.conversation_context = {
             "current_topic": None,
@@ -956,7 +963,7 @@ Answer the user's query clearly and helpfully, maintaining context and building 
             elif local_intent == "get_weather":
                 city = slots.get("location")
                 if city:
-                    self._get_weather(city, speak)
+                    self.weather_action.execute(city, speak)
                     answer = f"Fetching weather for {city}... (Check speaker output for details)"
                 else:
                     answer = "Which city would you like the weather for?"
