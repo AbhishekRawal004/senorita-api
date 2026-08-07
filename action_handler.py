@@ -485,8 +485,12 @@ User:
             return response.text.strip()
 
         except Exception as e:
-            print(f"Gemini Error: {e}")
-            return "Sorry boss, my AI service is unavailable right now."
+            import traceback
+            traceback.print_exc()
+
+            print(f"Gemini Error: {repr(e)}")
+
+            return f"Gemini Error: {repr(e)}"
 
     def _check_for_immediate_platform_and_launch(self, query: str, speak):
         """
