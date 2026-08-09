@@ -13,6 +13,7 @@ import os
 
 from actions.weather import WeatherAction
 from google import genai
+from smart_router import answer_from_free_knowledge
 
 from dotenv import load_dotenv
 import os
@@ -490,7 +491,16 @@ User:
 
             print(f"Gemini Error: {repr(e)}")
 
-            return f"Gemini Error: {repr(e)}"
+            # 🆓 Free knowledge fallback when Gemini fails
+            fallback = answer_from_free_knowledge(user_query)
+
+            if fallback and fallback.get("text"):
+                print(
+                    f"📚 Free knowledge fallback: {fallback.get('source', 'Wikipedia')}"
+                )
+                return fallback["text"]
+
+            return "I'm sorry, I'm having trouble connecting to my knowledge base right now."
 
     def _check_for_immediate_platform_and_launch(self, query: str, speak):
         """
@@ -621,51 +631,222 @@ User:
             "reminder_time": None}
 
     def _extract_calendar_event(self, query: str):
-        """NEW: Uses Gemini to extract structured calendar event data."""
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        """Extract calendar event title, date and time from natural language."""
 
-        extraction_prompt = f"""
-        Analyze the following event request.
-        Current time is: {current_time} (in the format YYYY-MM-DD HH:MM:SS).
+        if not query:
+            return {
+                "title": None,
+                "description": None,
+                "start_time": None,
+                "end_time": None,
+                "all_day": False
+            }
 
-        Rules:
-        1. Extract the 'title' of the event/meeting.
-        2. Extract the 'start_time' as a string in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Resolve relative times (e.g., 'tomorrow 3pm').
-        3. Extract the 'end_time' in the same ISO 8601 format. If duration is not specified, set end_time 1 hour after start_time. If no time/date is found, use null for both.
-        4. Set 'all_day' to true if the event is clearly an all-day event (e.g., "birthday on Monday") or false otherwise.
-        5. Extract a brief 'description' for the event, or use the query itself.
+        now = datetime.now()
+        text = query.strip()
 
-        Query: "{query}"
+        # ---------------------------------------------------------
+        # DATE
+        # ---------------------------------------------------------
+        event_date = None
+        lower_text = text.lower()
 
-        Respond ONLY in a JSON format like this:
-        {{ "title": "Team Meeting", "description": "Discuss project launch.", "start_time": "2025-11-20 15:00:00", "end_time": "2025-11-20 16:00:00", "all_day": false }}
-        OR (if no time is detected):
-        {{ "title": null, "description": null, "start_time": null, "end_time": null, "all_day": false }}
-        DO NOT include any explanation or additional text outside the JSON block."""
+        if re.search(r"\btomorrow\b", lower_text):
+            event_date = (now + timedelta(days=1)).date()
 
-        response = self._call_gemini_api(extraction_prompt, history=[])
+        elif re.search(r"\btoday\b", lower_text):
+            event_date = now.date()
 
-        try:
-            match = re.search(r'\{.*\}', response, re.DOTALL)
-            if match:
-                json_str = match.group(0)
+        else:
+            # Weekday names
+            weekdays = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6
+            }
+
+            weekday_match = re.search(
+                r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+                lower_text
+            )
+
+            if weekday_match:
+                target_day = weekdays[weekday_match.group(1)]
+                current_day = now.weekday()
+
+                days_ahead = (target_day - current_day) % 7
+
+                # If today is mentioned as a weekday, use today.
+                # Otherwise a weekday with 0 days ahead means next week.
+                if days_ahead == 0:
+                    days_ahead = 7
+
+                event_date = (now + timedelta(days=days_ahead)).date()
+
+        # ---------------------------------------------------------
+        # TIME
+        # ---------------------------------------------------------
+        time_match = re.search(
+            r"\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)\b",
+            text
+        )
+
+        hour = None
+        minute = 0
+
+        if time_match:
+            hour = int(time_match.group(1))
+            minute = int(time_match.group(2) or 0)
+
+            meridiem = time_match.group(3).lower()
+
+            if meridiem == "pm" and hour != 12:
+                hour += 12
+
+            elif meridiem == "am" and hour == 12:
+                hour = 0
+
+        # If no date was specified but a time was given,
+        # choose today if that time hasn't passed, otherwise tomorrow.
+        if event_date is None and hour is not None:
+
+            candidate = now.replace(
+                hour=hour,
+                minute=minute,
+                second=0,
+                microsecond=0
+            )
+
+            if candidate > now:
+                event_date = now.date()
             else:
-                json_str = response.strip()
+                event_date = (now + timedelta(days=1)).date()
 
-            data = json.loads(json_str)
-            return data
+        # ---------------------------------------------------------
+        # TITLE
+        # ---------------------------------------------------------
+        title = text
 
-        except Exception as e:
-            print(
-                f"Error parsing Gemini response for calendar extraction: {e}",
-                file=sys.stderr)
+        # Remove command prefix.
+        title = re.sub(
+            r"^(?:please\s+)?(?:schedule|create|set\s+up)\s+(?:a|an)\s+",
+            "",
+            title,
+            flags=re.IGNORECASE
+        )
+
+        # Handle "called Project Meeting".
+        called_match = re.search(
+            r"\bcalled\s+(.+?)(?=\s+(?:today|tomorrow|on\s+"
+            r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+            r"|at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm))\b|$)",
+            title,
+            flags=re.IGNORECASE
+        )
+
+        if called_match:
+            title = called_match.group(1).strip()
+
+        else:
+            # Remove "with John" only as a structural separator,
+            # then rebuild it nicely below.
+            with_match = re.search(
+                r"\bmeeting\s+with\s+(.+?)(?=\s+(?:today|tomorrow|on\s+"
+                r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                r"|at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm))\b|$)",
+                title,
+                flags=re.IGNORECASE
+            )
+
+            if with_match:
+                person = with_match.group(1).strip()
+                title = f"Meeting with {person}"
+
+            else:
+                # Remove date words.
+                title = re.sub(
+                    r"\b(?:today|tomorrow)\b",
+                    "",
+                    title,
+                    flags=re.IGNORECASE
+                )
+
+                # Remove weekday.
+                title = re.sub(
+                    r"\b(?:on\s+)?(?:monday|tuesday|wednesday|thursday|"
+                    r"friday|saturday|sunday)\b",
+                    "",
+                    title,
+                    flags=re.IGNORECASE
+                )
+
+                # Remove time.
+                title = re.sub(
+                    r"\bat\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\b",
+                    "",
+                    title,
+                    flags=re.IGNORECASE
+                )
+
+                # Clean leftover "called".
+                title = re.sub(
+                    r"\bcalled\b",
+                    "",
+                    title,
+                    flags=re.IGNORECASE
+                )
+
+        # ---------------------------------------------------------
+        # CLEAN TITLE
+        # ---------------------------------------------------------
+        title = re.sub(r"\s+", " ", title).strip(" .,!?")
+
+        title = re.sub(
+            r"^(?:a|an|the)\s+",
+            "",
+            title,
+            flags=re.IGNORECASE
+        )
+
+        if not title:
+            title = "Untitled Event"
+
+        # ---------------------------------------------------------
+        # BUILD DATETIME
+        # ---------------------------------------------------------
+        if event_date is None or hour is None:
+            return {
+                "title": title,
+                "description": text,
+                "start_time": None,
+                "end_time": None,
+                "all_day": False
+            }
+
+        start_dt = datetime.combine(
+            event_date,
+            datetime.min.time()
+        ).replace(
+            hour=hour,
+            minute=minute,
+            second=0,
+            microsecond=0
+        )
+
+        # Default duration = 1 hour.
+        end_dt = start_dt + timedelta(hours=1)
 
         return {
-            "title": None,
-            "description": None,
-            "start_time": None,
-            "end_time": None,
-            "all_day": False}
+            "title": title,
+            "description": text,
+            "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time": end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "all_day": False
+        }
 
     def handle_set_reminder(self, query: str, speak):
         """Adds a new reminder to the user's persistent data (Feature A)."""
@@ -767,6 +948,27 @@ User:
             "start_time": start_time,
             "end_time": end_time,
             "all_day": all_day,
+            "text_response": answer
+        }
+
+    def handle_get_calendar_events(self, period: str, speak):
+        """Requests calendar events from the mobile device."""
+
+        period = (period or "today").lower().strip()
+
+        if period not in ["today", "tomorrow"]:
+            period = "today"
+
+        if period == "tomorrow":
+            answer = "Checking your calendar for tomorrow."
+        else:
+            answer = "Checking your calendar for today."
+
+        speak(answer)
+
+        return {
+            "type": "get_calendar_events",
+            "period": period,
             "text_response": answer
         }
 
@@ -938,7 +1140,8 @@ User:
             "open_mobile_app",
             "change_volume",
             "set_calendar_event",
-                "clear_notes"]:
+                "clear_notes",
+                "get_calendar_events",]:
             self.conversation_history = []
 
         if local_intent == "wake_word":
@@ -963,17 +1166,63 @@ User:
             return self._open_search_link(platform_name, media_query, speak)
 
         if local_intent == "media_request":
-            query = slots.get("query", "")
-            result = self._check_for_immediate_platform_and_launch(
-                query, speak)
+            query = slots.get("query", "").strip()
+
+            # Explicit platform
+            result = self._check_for_immediate_platform_and_launch(query, speak)
             if result:
                 return result
 
-            if any(term in query.lower()
-                   for term in ["image", "picture", "photo", "show me"]):
+            # Image request
+            if any(term in query.lower() for term in [
+                "image",
+                "picture",
+                "photo",
+                "show me"
+            ]):
                 return self.handle_image_request(query, speak)
 
-            return self.handle("play_music", {"slot0": query}, speak)
+            query_lower = query.lower()
+
+            # Video detection
+            video_words = [
+                "watch",
+                "video",
+                "movie",
+                "film",
+                "trailer",
+                "episode",
+                "clip"
+            ]
+
+            is_video = any(
+                word in query_lower
+                for word in video_words
+            )
+
+            # Remove command words
+            clean_query = re.sub(
+                r"^(play|watch|show|display|listen to|listen)\s+",
+                "",
+                query,
+                flags=re.IGNORECASE
+            ).strip()
+
+            if not clean_query:
+                clean_query = query
+
+            if is_video:
+                return self.handle(
+                    "play_video",
+                    {"slot0": clean_query},
+                    speak
+                )
+
+            return self.handle(
+                "play_music",
+                {"slot0": clean_query},
+                speak
+            )
 
         try:
             if local_intent in [
@@ -982,25 +1231,99 @@ User:
                     "change_volume"]:
                 return self.handle_mobile_control(local_intent, slots, speak)
 
-            elif local_intent in ["can_play_music", "can_play_video", "play_music", "play_video"]:
-                query = slots.get("slot0")
-                media_type = "music or a song" if local_intent in [
-                    "can_play_music", "play_music"] else "video or a clip"
+            elif local_intent in [
+                "can_play_music",
+                "can_play_video",
+                "play_music",
+                "play_video"
+            ]:
+                query = (slots.get("slot0") or "").strip()
 
-                if query:
-                    result = self._check_for_immediate_platform_and_launch(
-                        query, speak)
-                    if result:
-                        return result
+                is_music = local_intent in [
+                    "can_play_music",
+                    "play_music"
+                ]
 
-                    self.user_data["waiting_for_platform"] = query
-                    answer = f"I can play **{query}**! On which platform would you like me to search? For example, tell me 'YouTube' or 'Spotify'."
-                else:
-                    self.user_data["waiting_for_platform"] = "generic media"
-                    answer = f"I can definitely play {media_type}! What would you like to hear/watch, and on which platform (like YouTube or Spotify)?"
+                media_type = "music" if is_music else "video"
+                platform = slots.get("platform")
 
-                speak(answer)
-                return {"type": "text", "content": answer}
+                # ---------------------------------------------------------
+                # NO QUERY
+                # ---------------------------------------------------------
+                if not query:
+                    answer = (
+                        "What song would you like me to play?"
+                        if is_music
+                        else "What video would you like me to play?"
+                    )
+
+                    speak(answer)
+
+                    return {
+                        "type": "text",
+                        "content": answer
+                    }
+
+                # ---------------------------------------------------------
+                # EXPLICIT PLATFORM
+                # ---------------------------------------------------------
+                if platform:
+                    platform = platform.lower().strip()
+
+                    if platform in ["yt", "youtube"]:
+                        platform = "youtube"
+
+                    elif platform in ["spotify"]:
+                        platform = "spotify"
+
+                    elif platform in ["jiosaavn", "saavn"]:
+                        platform = "jiosaavn"
+
+                    # Remove media words from search query
+                    clean_media_query = re.sub(
+                        r"\b(?:song|music|track|video|videos|movie|film|trailer|clip)\b",
+                        "",
+                        query,
+                        flags=re.IGNORECASE
+                    )
+
+                    clean_media_query = re.sub(
+                        r"\s+",
+                        " ",
+                        clean_media_query
+                    ).strip()
+
+                    if not clean_media_query:
+                        clean_media_query = query
+
+                    return self._open_search_link(
+                        platform,
+                        clean_media_query,
+                        speak
+                    )
+
+                # ---------------------------------------------------------
+                # NO PLATFORM
+                #
+                # Music -> default/offline phone music player
+                # Video -> default phone video player
+                # ---------------------------------------------------------
+                response_text = (
+                    f"Opening your default music player for **{query}**."
+                    if is_music
+                    else f"Opening your default video player for **{query}**."
+                )
+
+                speak(response_text)
+
+                return {
+                    "type": "play_media",
+                    "media_type": media_type,
+                    "query": query,
+                    "platform": "default",
+                    "text_response": response_text
+                }
+
 
             elif local_intent == "set_reminder":
                 query = slots.get("query")
@@ -1009,6 +1332,10 @@ User:
             elif local_intent == "set_calendar_event":
                 query = slots.get("query")
                 return self.handle_set_calendar_event(query, speak)
+
+            elif local_intent == "get_calendar_events":
+                period = slots.get("period", "today")
+                return self.handle_get_calendar_events(period, speak)
 
             elif local_intent == "recall_notes":
                 return self.handle_recall_notes(speak)
