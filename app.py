@@ -1,6 +1,9 @@
 from flask import Flask, render_template, request, jsonify
 from command_parser import CommandParser
 from action_handler import ActionHandler
+
+from smart_router import normalize_command
+import traceback
 from flask_cors import CORS
 import sys
 import os 
@@ -32,21 +35,38 @@ def home():
 def send_command():
     """Receives text command from the client, processes it, and returns the response as text and structured data."""
     try:
-        data = request.json
-        user_text = data.get("text", "")
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            print(
+                f"❌ Invalid JSON received. Raw body: {request.get_data(as_text=True)}",
+                file=sys.stderr
+            )
+
+            return jsonify({
+                "response": {
+                    "type": "text",
+                    "content": "Invalid command data received.",
+                    "structured_data": None
+                }
+            }), 400
+
+        user_text = data.get("text", "").strip()
 
         if not user_text:
             return jsonify({"response": {"type": "text", "content": "Please provide a command.", "structured_data": None}})
 
-        # 1. Parse Command
-        t = user_text.lower().strip()
+        # 1. Normalize and Parse Command
+        t = normalize_command(user_text)
+        print(f"🧠 Normalized command: {t}", file=sys.stderr)
+
         intent, slots = parser.parse(t)
 
         # 2. Handle Action
         response = actions.handle(intent, slots, app_speak_wrapper)
         
         # 3. Format Response
-        mobile_command_types = ["hardware_toggle", "open_mobile_app", "maps_search", "media_deep_link", "add_calendar_event", "send_message"]
+        mobile_command_types = ["hardware_toggle", "open_mobile_app", "maps_search", "media_deep_link", "add_calendar_event", "send_message", "play_media",]
         
         if isinstance(response, dict) and response.get("type") in mobile_command_types:
             response_text = response.get("text_response", response.get("content", "Command processed."))
@@ -72,7 +92,17 @@ def send_command():
 
     except Exception as e:
         error_message = f"Internal Server Error during command processing. Details: {e}"
+
         print(f"CRITICAL FLASK ERROR: {error_message}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+
+        return jsonify({
+            "response": {
+                "type": "text",
+                "content": "Oops! I ran into an internal error while processing your request. Please try again.",
+                "structured_data": None
+            }
+        }), 500
 
         return jsonify({
             "response": {
